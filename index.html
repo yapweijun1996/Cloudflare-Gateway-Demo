@@ -284,6 +284,39 @@
         }
       });
 
+      function openSettingsModal() {
+        modalApiUrl.value = config.apiUrl;
+        modalApiKey.value = config.apiKey;
+        modalSystemPrompt.value = config.systemPrompt;
+        modalTemperature.value = config.temperature;
+        settingsModal.classList.remove("hidden");
+        settingsModal.classList.add("flex");
+      }
+
+      function closeSettingsModal() {
+        settingsModal.classList.add("hidden");
+        settingsModal.classList.remove("flex");
+      }
+
+      openSettingsBtn.addEventListener("click", openSettingsModal);
+      closeSettingsBtn.addEventListener("click", closeSettingsModal);
+      settingsOverlay.addEventListener("click", closeSettingsModal);
+      cancelSettingsBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeSettingsModal();
+      });
+
+      settingsForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        config.apiUrl = modalApiUrl.value.trim() || DEFAULT_API_URL;
+        config.apiKey = modalApiKey.value.trim() || DEFAULT_API_KEY;
+        config.systemPrompt = modalSystemPrompt.value.trim() || DEFAULT_SYSTEM_PROMPT;
+        const tempVal = parseFloat(modalTemperature.value);
+        config.temperature = Number.isFinite(tempVal) ? Math.min(Math.max(tempVal, 0), 2) : DEFAULT_TEMPERATURE;
+        history[0].content = config.systemPrompt;
+        closeSettingsModal();
+      });
+
       async function sendMessage() {
         const content = userInput.value.trim();
         if (!content) return;
@@ -477,35 +510,3 @@
     </script>
   </body>
 </html>
-      function openSettingsModal() {
-        modalApiUrl.value = config.apiUrl;
-        modalApiKey.value = config.apiKey;
-        modalSystemPrompt.value = config.systemPrompt;
-        modalTemperature.value = config.temperature;
-        settingsModal.classList.remove("hidden");
-        settingsModal.classList.add("flex");
-      }
-
-      function closeSettingsModal() {
-        settingsModal.classList.add("hidden");
-        settingsModal.classList.remove("flex");
-      }
-
-      openSettingsBtn.addEventListener("click", openSettingsModal);
-      closeSettingsBtn.addEventListener("click", closeSettingsModal);
-      settingsOverlay.addEventListener("click", closeSettingsModal);
-      cancelSettingsBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        closeSettingsModal();
-      });
-
-      settingsForm.addEventListener("submit", (e) => {
-        e.preventDefault();
-        config.apiUrl = modalApiUrl.value.trim() || DEFAULT_API_URL;
-        config.apiKey = modalApiKey.value.trim() || DEFAULT_API_KEY;
-        config.systemPrompt = modalSystemPrompt.value.trim() || DEFAULT_SYSTEM_PROMPT;
-        const tempVal = parseFloat(modalTemperature.value);
-        config.temperature = Number.isFinite(tempVal) ? Math.min(Math.max(tempVal, 0), 2) : DEFAULT_TEMPERATURE;
-        history[0].content = config.systemPrompt;
-        closeSettingsModal();
-      });
