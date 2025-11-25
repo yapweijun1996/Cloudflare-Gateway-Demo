@@ -230,6 +230,7 @@
       const DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant. Use Markdown for formatting.";
       const DEFAULT_MODEL = "gpt-oss-20b";
       const DEFAULT_TEMPERATURE = 0.7;
+      const STORAGE_KEY = "gatewayChatConfig";
 
       const messagesEl = document.getElementById("messages");
       const messagesContainer = messagesEl.firstElementChild; // The inner max-w-3xl div
@@ -253,13 +254,7 @@
       const modalTemperature = document.getElementById("modalTemperature");
       const modalModelName = document.getElementById("modalModelName");
 
-      const config = {
-        apiUrl: DEFAULT_API_URL,
-        apiKey: DEFAULT_API_KEY,
-        systemPrompt: DEFAULT_SYSTEM_PROMPT,
-        temperature: DEFAULT_TEMPERATURE,
-        model: DEFAULT_MODEL,
-      };
+      const config = loadPersistedConfig();
 
       // Setup Marked (Markdown) options
       marked.setOptions({
@@ -298,6 +293,36 @@
         }
       });
 
+      function getDefaultConfig() {
+        return {
+          apiUrl: DEFAULT_API_URL,
+          apiKey: DEFAULT_API_KEY,
+          systemPrompt: DEFAULT_SYSTEM_PROMPT,
+          temperature: DEFAULT_TEMPERATURE,
+          model: DEFAULT_MODEL,
+        };
+      }
+
+      function loadPersistedConfig() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return getDefaultConfig();
+          const parsed = JSON.parse(raw);
+          return { ...getDefaultConfig(), ...parsed };
+        } catch (err) {
+          console.warn("Failed to load config from localStorage:", err);
+          return getDefaultConfig();
+        }
+      }
+
+      function persistConfig() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+        } catch (err) {
+          console.warn("Failed to persist config:", err);
+        }
+      }
+
       function openSettingsModal() {
         modalApiUrl.value = config.apiUrl;
         modalApiKey.value = config.apiKey;
@@ -318,6 +343,7 @@
       settingsOverlay.addEventListener("click", closeSettingsModal);
       cancelSettingsBtn.addEventListener("click", (e) => {
         e.preventDefault();
+        persistConfig();
         closeSettingsModal();
       });
 
@@ -457,9 +483,9 @@
           updateTokenRate(firstTokenAt, endedAt, tokenCount);
 
           history.push({ role: "user", content });
-          history.push({ role: "assistant", content: fullResponse });
+        history.push({ role: "assistant", content: fullResponse });
 
-          updateStatus("Idle", "bg-slate-500");
+        updateStatus("Idle", "bg-slate-500");
         } catch (error) {
           console.error(error);
           if (!bubbleContent.classList.contains("text-red-400")) {
