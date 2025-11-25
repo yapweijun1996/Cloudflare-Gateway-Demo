@@ -198,6 +198,17 @@
             <input id="modalApiKey" type="text" class="w-full rounded-2xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40" />
           </label>
           <label class="block text-[11px] uppercase tracking-wide text-slate-500 font-semibold space-y-1">
+            <span>Model Name</span>
+            <input id="modalModelName" list="modelOptions" type="text" class="w-full rounded-2xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40" />
+            <datalist id="modelOptions">
+              <option value="gpt-oss-20b"></option>
+              <option value="llama3.1-8b-instruct"></option>
+              <option value="llama3.1-70b-instruct"></option>
+              <option value="mistral-small"></option>
+              <option value="mistral-large"></option>
+            </datalist>
+          </label>
+          <label class="block text-[11px] uppercase tracking-wide text-slate-500 font-semibold space-y-1">
             <span>System Prompt</span>
             <textarea id="modalSystemPrompt" rows="3" class="w-full rounded-2xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40"></textarea>
           </label>
@@ -217,6 +228,7 @@
       const DEFAULT_API_URL = "https://api.b1122333.com/v1/chat/completions";
       const DEFAULT_API_KEY = "sk-tno-llm-2025-1";
       const DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant. Use Markdown for formatting.";
+      const DEFAULT_MODEL = "gpt-oss-20b";
       const DEFAULT_TEMPERATURE = 0.7;
 
       const messagesEl = document.getElementById("messages");
@@ -239,12 +251,14 @@
       const modalApiKey = document.getElementById("modalApiKey");
       const modalSystemPrompt = document.getElementById("modalSystemPrompt");
       const modalTemperature = document.getElementById("modalTemperature");
+      const modalModelName = document.getElementById("modalModelName");
 
       const config = {
         apiUrl: DEFAULT_API_URL,
         apiKey: DEFAULT_API_KEY,
         systemPrompt: DEFAULT_SYSTEM_PROMPT,
         temperature: DEFAULT_TEMPERATURE,
+        model: DEFAULT_MODEL,
       };
 
       // Setup Marked (Markdown) options
@@ -289,6 +303,7 @@
         modalApiKey.value = config.apiKey;
         modalSystemPrompt.value = config.systemPrompt;
         modalTemperature.value = config.temperature;
+        modalModelName.value = config.model;
         settingsModal.classList.remove("hidden");
         settingsModal.classList.add("flex");
       }
@@ -313,6 +328,7 @@
         config.systemPrompt = modalSystemPrompt.value.trim() || DEFAULT_SYSTEM_PROMPT;
         const tempVal = parseFloat(modalTemperature.value);
         config.temperature = Number.isFinite(tempVal) ? Math.min(Math.max(tempVal, 0), 2) : DEFAULT_TEMPERATURE;
+        config.model = modalModelName.value.trim() || DEFAULT_MODEL;
         history[0].content = config.systemPrompt;
         closeSettingsModal();
       });
@@ -350,7 +366,7 @@
           const apiUrl = config.apiUrl || DEFAULT_API_URL;
           const apiKey = config.apiKey || DEFAULT_API_KEY;
           const payload = {
-            model: "gpt-oss-20b",
+            model: config.model || DEFAULT_MODEL,
             stream: useStream,
             temperature: config.temperature,
             messages: [...history, { role: "user", content }],
