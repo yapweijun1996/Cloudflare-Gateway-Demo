@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
+    />
+    <title>Mobile OCR Scanner</title>
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=space%20grotesk@500,600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: { display: ['"Space Grotesk"', "sans-serif"] },
+            colors: {
+              panel: "#111827",
+              surface: "#0b1120",
+              accent: "#34d399",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        background: radial-gradient(circle at top, rgba(52, 211, 153, 0.15), transparent 45%), #030712;
+      }
+    </style>
+  </head>
+  <body class="min-h-dvh text-slate-200 antialiased">
+    <div class="mx-auto flex max-w-xl flex-col gap-4 px-4 py-6">
+      <header class="rounded-2xl border border-white/10 bg-panel/80 p-4 shadow-lg shadow-emerald-500/5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs uppercase tracking-[0.3em] text-slate-500">OCR Scanner</p>
+            <h1 class="text-xl font-display font-semibold text-white">DeepSeek Mobile Capture</h1>
+          </div>
+          <div class="flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1">
+            <span id="statusDot" class="h-2.5 w-2.5 rounded-full bg-slate-500"></span>
+            <span id="statusText" class="text-xs font-medium text-slate-300">Idle</span>
+          </div>
+        </div>
+        <p class="mt-2 text-xs text-slate-400">
+          Captures a frame every <span class="font-semibold text-white">10 seconds</span> and sends it to your LM Studio OCR model. Returns text only.
+        </p>
+      </header>
+
+      <section class="space-y-3 rounded-2xl border border-white/10 bg-panel/70 p-4 shadow-inner shadow-black/50">
+        <div class="relative overflow-hidden rounded-xl border border-white/5 bg-black/60">
+          <video id="cameraFeed" class="h-[320px] w-full object-cover" playsinline autoplay muted></video>
+          <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-3 text-xs text-white/80">
+            <p>Camera preview (mirrored). Put the document inside the frame.</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2 text-xs text-slate-400">
+          <div class="flex-1 rounded-xl border border-white/10 bg-black/40 px-3 py-2">
+            <p class="text-[10px] uppercase tracking-wide text-slate-500">Next capture</p>
+            <p id="countdown" class="font-mono text-sm text-white">--</p>
+          </div>
+          <div class="flex-1 rounded-xl border border-white/10 bg-black/40 px-3 py-2">
+            <p class="text-[10px] uppercase tracking-wide text-slate-500">Last result</p>
+            <p id="lastTimestamp" class="font-mono text-sm text-white">--</p>
+          </div>
+          <button
+            id="toggleScan"
+            class="w-full rounded-xl bg-emerald-500/20 px-4 py-3 text-center text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/40"
+            type="button"
+          >
+            Enable Camera & Start OCR
+          </button>
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-white/10 bg-panel/80 p-4">
+        <details class="group" open>
+          <summary class="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-400">
+            API Settings
+          </summary>
+          <form id="settingsForm" class="mt-3 space-y-3 text-sm">
+            <label class="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <span>API Base URL</span>
+              <input id="apiUrl" type="text" class="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-white focus:border-emerald-500/60 focus:outline-none" />
+            </label>
+            <label class="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <span>API Key</span>
+              <input id="apiKey" type="password" class="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-white focus:border-emerald-500/60 focus:outline-none" />
+            </label>
+            <label class="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <span>Model</span>
+              <input id="modelName" list="ocrModels" type="text" class="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-white focus:border-emerald-500/60 focus:outline-none" />
+              <datalist id="ocrModels">
+                <option value="deepseek-ocr"></option>
+                <option value="mlx-community/DeepSeek-OCR-8bit"></option>
+              </datalist>
+            </label>
+            <label class="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <span>Instruction</span>
+              <textarea id="promptText" rows="2" class="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-white focus:border-emerald-500/60 focus:outline-none"></textarea>
+            </label>
+            <label class="block space-y-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <span>Max Output Tokens</span>
+              <input id="maxTokens" type="number" min="1" max="32768" class="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-white focus:border-emerald-500/60 focus:outline-none" />
+            </label>
+            <button
+              type="submit"
+              class="w-full rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-900 transition hover:bg-emerald-400"
+            >
+              Save Settings
+            </button>
+          </form>
+        </details>
+      </section>
+
+      <section class="flex-1 rounded-2xl border border-white/10 bg-panel/80 p-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">Recognized Text</h2>
+          <button id="clearResults" class="text-xs font-semibold text-rose-300 hover:text-rose-200" type="button">Clear</button>
+        </div>
+        <div id="results" class="mt-3 space-y-3 text-sm text-slate-200">
+          <p class="text-xs text-slate-500">No scans yet.</p>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const DEFAULT_API_URL = "https://api.b1122333.com/v1/chat/completions";
+      const DEFAULT_API_KEY = "sk-tno-llm-2025-1";
+      const DEFAULT_MODEL = "mlx-community/DeepSeek-OCR-8bit";
+      const DEFAULT_PROMPT =
+        "You are an OCR engine. You receive one image as input.\nExtract and output only the readable text from the image.\nDo not describe the image.\nDo not mention that this is an image.\nDo not include JSON, Markdown, code blocks, or explanations.\nDo not repeat or print the image URL or any image object.\nReturn plain text only, line by line as it appears.\nNo text return null.";
+      const DEFAULT_MAX_TOKENS = 512;
+      const DEFAULT_TOP_K = 40;
+      const DEFAULT_TOP_P = 0.95;
+      const DEFAULT_MIN_P = 0.05;
+      const DEFAULT_REPEAT_PENALTY = 1;
+      const SCAN_INTERVAL_MS = 10000;
+      const STORAGE_KEY = "ocrMobileConfig";
+
+      const videoEl = document.getElementById("cameraFeed");
+      const toggleBtn = document.getElementById("toggleScan");
+      const countdownEl = document.getElementById("countdown");
+      const lastTsEl = document.getElementById("lastTimestamp");
+      const statusText = document.getElementById("statusText");
+      const statusDot = document.getElementById("statusDot");
+      const resultsEl = document.getElementById("results");
+      const clearBtn = document.getElementById("clearResults");
+      const settingsForm = document.getElementById("settingsForm");
+      const apiUrlInput = document.getElementById("apiUrl");
+      const apiKeyInput = document.getElementById("apiKey");
+      const modelInput = document.getElementById("modelName");
+      const promptInput = document.getElementById("promptText");
+      const maxTokensInput = document.getElementById("maxTokens");
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      let cameraStream = null;
+      let scanTimeout = null;
+      let countdownTimer = null;
+      let nextScanAt = null;
+      let scanning = false;
+      let lastCapturePreview = "";
+
+      const config = loadConfig();
+      syncSettingsForm();
+
+      settingsForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        config.apiUrl = apiUrlInput.value.trim() || DEFAULT_API_URL;
+        config.apiKey = apiKeyInput.value.trim() || DEFAULT_API_KEY;
+        config.model = modelInput.value.trim() || DEFAULT_MODEL;
+        config.prompt = promptInput.value.trim() || DEFAULT_PROMPT;
+        const parsedMax = parseInt(maxTokensInput.value, 10);
+        config.maxTokens = Number.isFinite(parsedMax) && parsedMax > 0 ? parsedMax : DEFAULT_MAX_TOKENS;
+        persistConfig();
+        flashStatus("Settings saved", "bg-emerald-400");
+      });
+
+      clearBtn.addEventListener("click", () => {
+        resultsEl.innerHTML = '<p class="text-xs text-slate-500">No scans yet.</p>';
+      });
+
+      toggleBtn.addEventListener("click", () => {
+        scanning ? stopScanning() : startScanning();
+      });
+
+      async function startScanning() {
+        try {
+          await ensureCamera();
+          scanning = true;
+          toggleBtn.textContent = "Stop Scanning";
+          toggleBtn.classList.remove("bg-emerald-500/20");
+          toggleBtn.classList.add("bg-rose-500/30", "text-rose-50");
+          updateStatus("Capturing", "bg-emerald-400");
+          await captureAndSend();
+          scheduleNextCycle();
+        } catch (err) {
+          console.error(err);
+          flashStatus("Camera error - grant permission", "bg-rose-500");
+        }
+      }
+
+      function stopScanning() {
+        scanning = false;
+        toggleBtn.textContent = "Enable Camera & Start OCR";
+        toggleBtn.classList.add("bg-emerald-500/20");
+        toggleBtn.classList.remove("bg-rose-500/30", "text-rose-50");
+        updateStatus("Idle", "bg-slate-500");
+        clearTimeout(scanTimeout);
+        clearInterval(countdownTimer);
+        countdownEl.textContent = "--";
+        nextScanAt = null;
+      }
+
+      async function ensureCamera() {
+        if (cameraStream) return;
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false,
+        });
+        videoEl.srcObject = cameraStream;
+      }
+
+      function scheduleNextCycle() {
+        if (!scanning) return;
+        nextScanAt = Date.now() + SCAN_INTERVAL_MS;
+        updateCountdown();
+        clearInterval(countdownTimer);
+        countdownTimer = setInterval(updateCountdown, 250);
+        scanTimeout = setTimeout(async () => {
+          if (!scanning) return;
+          await captureAndSend();
+          scheduleNextCycle();
+        }, SCAN_INTERVAL_MS);
+      }
+
+      function updateCountdown() {
+        if (!nextScanAt) {
+          countdownEl.textContent = "--";
+          return;
+        }
+        const diff = Math.max(0, nextScanAt - Date.now());
+        countdownEl.textContent = (diff / 1000).toFixed(1) + "s";
+      }
+
+      async function captureAndSend() {
+        if (!videoEl.videoWidth) {
+          console.warn("Video not ready");
+          return;
+        }
+        const maxDimension = 1024;
+        let targetWidth = videoEl.videoWidth;
+        let targetHeight = videoEl.videoHeight;
+        if (targetWidth > targetHeight && targetWidth > maxDimension) {
+          const scale = maxDimension / targetWidth;
+          targetWidth = maxDimension;
+          targetHeight = Math.round(targetHeight * scale);
+        } else if (targetHeight >= targetWidth && targetHeight > maxDimension) {
+          const scale = maxDimension / targetHeight;
+          targetHeight = maxDimension;
+          targetWidth = Math.round(targetWidth * scale);
+        }
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        addPreviewCard(dataUrl);
+        lastCapturePreview = dataUrl;
+        const base64 = dataUrl.split(",")[1];
+        console.log(
+          "[OCR] Captured image (base64, first 80 chars):",
+          base64.slice(0, 80) + "..."
+        );
+        await runOcr(base64);
+      }
+
+      async function runOcr(imageBase64) {
+        const previewUrl = lastCapturePreview;
+        const resultUI = addResult("Processing OCR...", { previewUrl });
+        const payload = {
+          model: config.model || DEFAULT_MODEL,
+          max_tokens: config.maxTokens || DEFAULT_MAX_TOKENS,
+          temperature: 0,
+          stream: true,
+          top_p: DEFAULT_TOP_P,
+          top_k: DEFAULT_TOP_K,
+          min_p: DEFAULT_MIN_P,
+          repeat_penalty: DEFAULT_REPEAT_PENALTY,
+          messages: [
+            {
+              role: "system",
+              content: "",
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: config.prompt || DEFAULT_PROMPT,
+                },
+                {
+                  type: "image_url",
+                  image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
+                },
+              ],
+            },
+          ],
+        };
+
+        try {
+          const headers = { "Content-Type": "application/json" };
+          if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
+          const res = await fetch(config.apiUrl || DEFAULT_API_URL, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            const errText = await res.text();
+            resultUI.setError();
+            resultUI.setText(`Error ${res.status}: ${errText}`);
+            updateStatus("Error", "bg-rose-500");
+            return;
+          }
+          if (payload.stream && res.body) {
+            await handleStreamResponse(res, resultUI);
+          } else {
+            const data = await res.json();
+            const text = extractText(data);
+            resultUI.setText(text || "[No text detected]");
+          }
+          lastTsEl.textContent = new Date().toLocaleTimeString();
+          updateStatus("Captured", "bg-emerald-400");
+        } catch (err) {
+          console.error(err);
+          resultUI.setError();
+          resultUI.setText(err.message || "Request failed");
+          updateStatus("Error", "bg-rose-500");
+        }
+      }
+
+      async function handleStreamResponse(res, resultUI) {
+        const reader = res.body?.getReader();
+        if (!reader) {
+          resultUI.setText("[Stream unavailable]");
+          return;
+        }
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let assembled = "";
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const segments = buffer.split("\n");
+          buffer = segments.pop() || "";
+
+          for (const segment of segments) {
+            const line = segment.trim();
+            if (!line || !line.startsWith("data:")) continue;
+            const dataStr = line.slice(5).trim();
+            if (!dataStr || dataStr === "[DONE]") continue;
+            try {
+              const parsed = JSON.parse(dataStr);
+              const delta = extractDelta(parsed);
+              if (delta) {
+                assembled += delta;
+                resultUI.setText(assembled);
+              }
+            } catch (err) {
+              console.warn("Stream parse error:", err);
+            }
+          }
+        }
+
+        if (!assembled) {
+          resultUI.setText("[No text detected]");
+        }
+      }
+
+      function extractText(data) {
+        if (Array.isArray(data?.output)) {
+          return data.output
+            .map((block) =>
+              (block.content || [])
+                .map((item) => item?.text || "")
+                .filter(Boolean)
+                .join("\n")
+            )
+            .filter(Boolean)
+            .join("\n");
+        }
+        if (Array.isArray(data?.choices)) {
+          return data.choices
+            .map((choice) => choice.message?.content)
+            .filter(Boolean)
+            .join("\n");
+        }
+        if (typeof data?.text === "string") return data.text;
+        return "";
+      }
+
+      function extractDelta(data) {
+        const raw = data?.choices?.[0]?.delta?.content;
+        if (!raw) return "";
+        if (typeof raw === "string") return raw;
+        if (Array.isArray(raw)) {
+          return raw
+            .map((item) => {
+              if (typeof item === "string") return item;
+              if (typeof item?.text === "string") return item.text;
+              return "";
+            })
+            .join("");
+        }
+        if (typeof raw?.text === "string") return raw.text;
+        return "";
+      }
+
+      function addPreviewCard(dataUrl) {
+        if (resultsEl.firstElementChild?.textContent === "No scans yet.") {
+          resultsEl.innerHTML = "";
+        }
+        const card = document.createElement("article");
+        card.className =
+          "rounded-xl border border-white/10 bg-black/30 p-3 text-xs space-y-2 shadow-inner";
+        card.innerHTML = `
+          <div class="flex items-center justify-between text-[11px] text-slate-400">
+            <span>${new Date().toLocaleTimeString()}</span>
+            <span class="uppercase tracking-wide text-slate-500">Captured</span>
+          </div>
+          <img src="${dataUrl}" class="w-full rounded-lg border border-white/5" alt="Captured frame preview"/>
+        `;
+        resultsEl.prepend(card);
+      }
+
+      function addResult(initialText = "", options = {}) {
+        const { isError = false, previewUrl = "" } = options;
+        if (resultsEl.firstElementChild?.textContent === "No scans yet.") {
+          resultsEl.innerHTML = "";
+        }
+        const card = document.createElement("article");
+        card.className =
+          "rounded-xl border border-white/10 bg-black/40 p-3 text-sm shadow-inner space-y-2";
+        if (isError) {
+          card.classList.add("border-rose-400/40", "text-rose-200");
+        }
+        const header = document.createElement("div");
+        header.className =
+          "flex items-center justify-between text-xs text-slate-500";
+        header.innerHTML = `<span>${new Date().toLocaleTimeString()}</span>`;
+        const copyBtn = document.createElement("button");
+        copyBtn.className = "copyBtn text-emerald-300";
+        copyBtn.textContent = "Copy";
+        header.appendChild(copyBtn);
+
+        card.appendChild(header);
+
+        if (previewUrl) {
+          const preview = document.createElement("img");
+          preview.src = previewUrl;
+          preview.alt = "Captured frame preview";
+          preview.className =
+            "w-full rounded-lg border border-white/5 object-cover";
+          card.appendChild(preview);
+        }
+
+        const body = document.createElement("p");
+        body.className =
+          "whitespace-pre-wrap font-mono text-[13px] leading-relaxed";
+        body.textContent = initialText;
+        card.appendChild(body);
+
+        resultsEl.prepend(card);
+
+        copyBtn.addEventListener("click", () => {
+          navigator.clipboard.writeText(body.textContent).then(() => {
+            flashStatus("Copied", "bg-emerald-400");
+          });
+        });
+
+        const setError = () => {
+          card.classList.add("border-rose-400/40", "text-rose-200");
+        };
+
+        const setText = (text) => {
+          body.textContent = text;
+        };
+
+        return { setText, setError, card };
+      }
+
+      function updateStatus(text, colorClass) {
+        statusText.textContent = text;
+        statusDot.className = `h-2.5 w-2.5 rounded-full ${colorClass}`;
+      }
+
+      function flashStatus(text, colorClass) {
+        updateStatus(text, colorClass);
+        setTimeout(() => {
+          if (!scanning) updateStatus("Idle", "bg-slate-500");
+        }, 1500);
+      }
+
+      function escapeHtml(str) {
+        return str
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      function loadConfig() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) {
+            return {
+              apiUrl: DEFAULT_API_URL,
+              apiKey: DEFAULT_API_KEY,
+              model: DEFAULT_MODEL,
+              prompt: DEFAULT_PROMPT,
+              maxTokens: DEFAULT_MAX_TOKENS,
+            };
+          }
+          const parsed = JSON.parse(raw);
+          return {
+            apiUrl: parsed.apiUrl || DEFAULT_API_URL,
+            apiKey: parsed.apiKey || DEFAULT_API_KEY,
+            model: parsed.model || DEFAULT_MODEL,
+            prompt: parsed.prompt || DEFAULT_PROMPT,
+            maxTokens: parsed.maxTokens || DEFAULT_MAX_TOKENS,
+          };
+        } catch {
+          return {
+            apiUrl: DEFAULT_API_URL,
+            apiKey: DEFAULT_API_KEY,
+            model: DEFAULT_MODEL,
+            prompt: DEFAULT_PROMPT,
+            maxTokens: DEFAULT_MAX_TOKENS,
+          };
+        }
+      }
+
+      function persistConfig() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      }
+
+      function syncSettingsForm() {
+        apiUrlInput.value = config.apiUrl || DEFAULT_API_URL;
+        apiKeyInput.value = config.apiKey || DEFAULT_API_KEY;
+        modelInput.value = config.model || DEFAULT_MODEL;
+        promptInput.value = config.prompt || DEFAULT_PROMPT;
+        maxTokensInput.value = config.maxTokens || DEFAULT_MAX_TOKENS;
+      }
+    </script>
+  </body>
+</html>
