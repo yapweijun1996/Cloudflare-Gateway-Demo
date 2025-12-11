@@ -386,6 +386,7 @@
         let firstTokenAt = null;
         let tokenCount = 0;
         let fullResponse = "";
+        let displayResponse = "";
 
         try {
           const useStream = streamToggle.checked;
@@ -453,12 +454,13 @@
                     }
                     
                     fullResponse += delta;
-                    tokenCount += delta.split(/\s+/).filter(Boolean).length; // Rough token estimate
+                    displayResponse = sanitizeModelOutput(fullResponse);
+                    tokenCount = estimateTokens(displayResponse);
                     
-                    // Update UI with Markdown parsed content
-                    // Note: Parsing Markdown on every chunk is expensive for huge texts, 
+                    // Update UI with Markdown parsed content.
+                    // Note: Parsing Markdown on every chunk is expensive for huge texts,
                     // but fine for this demo scale.
-                    bubbleContent.innerHTML = marked.parse(fullResponse);
+                    bubbleContent.innerHTML = marked.parse(displayResponse);
                     
                     scrollToBottom();
                   }
@@ -473,8 +475,9 @@
             firstTokenAt = performance.now();
             updateFirstToken(startedAt, firstTokenAt);
             fullResponse = contentText;
-            tokenCount = fullResponse.split(/\s+/).filter(Boolean).length;
-            bubbleContent.innerHTML = marked.parse(fullResponse);
+            displayResponse = sanitizeModelOutput(fullResponse);
+            tokenCount = estimateTokens(displayResponse);
+            bubbleContent.innerHTML = marked.parse(displayResponse);
             if(bubbleContent.contains(loadingCursor)) loadingCursor.remove();
             scrollToBottom();
           }
@@ -483,9 +486,9 @@
           updateTokenRate(firstTokenAt, endedAt, tokenCount);
 
           history.push({ role: "user", content });
-        history.push({ role: "assistant", content: fullResponse });
+          history.push({ role: "assistant", content: displayResponse || sanitizeModelOutput(fullResponse) });
 
-        updateStatus("Idle", "bg-slate-500");
+          updateStatus("Idle", "bg-slate-500");
         } catch (error) {
           console.error(error);
           if (!bubbleContent.classList.contains("text-red-400")) {
@@ -572,6 +575,19 @@
         if (!el.classList.contains("text-red-400")) {
           el.className += " text-red-400";
         }
+      }
+
+      function sanitizeModelOutput(text) {
+        if (!text) return "";
+        // Strip out common control delimiters that some models emit.
+        return text
+          .replace(/<\|begin_of_box\|>/g, "")
+          .replace(/<\|end_of_box\|>/g, "")
+          .trim();
+      }
+
+      function estimateTokens(text) {
+        return text ? text.split(/\s+/).filter(Boolean).length : 0;
       }
     </script>
   </body>
