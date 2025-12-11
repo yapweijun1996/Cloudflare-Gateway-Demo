@@ -199,7 +199,12 @@
           </label>
           <label class="block text-[11px] uppercase tracking-wide text-slate-500 font-semibold space-y-1">
             <span>Model Name</span>
-            <input id="modalModelName" list="modelOptions" type="text" class="w-full rounded-2xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40" />
+            <div class="flex items-center gap-2">
+              <input id="modalModelName" list="modelOptions" type="text" class="w-full rounded-2xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40" />
+              <button id="clearModelInput" type="button" class="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-300 transition hover:border-accent/60 hover:text-white">
+                Clear
+              </button>
+            </div>
             <datalist id="modelOptions">
               <option value="gpt-oss-20b"></option>
               <option value="unsloth/GLM-4.6V-Flash-GGUF"></option>
@@ -251,6 +256,7 @@
       const modalSystemPrompt = document.getElementById("modalSystemPrompt");
       const modalTemperature = document.getElementById("modalTemperature");
       const modalModelName = document.getElementById("modalModelName");
+      const clearModelBtn = document.getElementById("clearModelInput");
 
       const config = loadPersistedConfig();
 
@@ -343,6 +349,12 @@
         e.preventDefault();
         persistConfig();
         closeSettingsModal();
+      });
+
+      clearModelBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        modalModelName.value = "";
+        modalModelName.focus();
       });
 
       settingsForm.addEventListener("submit", (e) => {
